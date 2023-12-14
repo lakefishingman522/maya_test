@@ -29,8 +29,8 @@ contract NFTMarketplace is
     mapping(uint256 => NFT) public nftsForSale;
     mapping(uint256 => mapping(address => uint256)) public bidsForNFT;
 
-    function initialize() public initializer {
-        __ERC721_init("NFTMarketplace", "NFTM");
+    function initialize(string memory name, string memory symbol) public initializer {
+        __ERC721_init(name, symbol);
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
@@ -62,6 +62,11 @@ contract NFTMarketplace is
             tokensId[i] = tokenOfOwnerByIndex(owner, i);
         }
         return tokensId;
+    }
+
+    // function for get ETH balance of contract
+    function getContractEthBalance() public view returns (uint256) {
+        return address(this).balance;
     }
 
     function listNFTForFixedPrice(uint256 _nftId, uint256 _price) public {
@@ -104,7 +109,7 @@ contract NFTMarketplace is
             _startingPrice,
             auctionEndTime,
             _startingPrice,
-            msg.sender
+            address(0)
         );
     }
 
@@ -219,6 +224,10 @@ contract NFTMarketplace is
             "NFT is not listed for auction"
         );
         require(
+            block.timestamp < nftsForSale[_nftId].auctionEndTime,
+            "Auction has already ended"
+        );
+        require(
             msg.value > nftsForSale[_nftId].highestBid,
             "Bid must be higher than current highest bid"
         );
@@ -233,27 +242,37 @@ contract NFTMarketplace is
         nftsForSale[_nftId].highestBidder = msg.sender;
         nftsForSale[_nftId].highestBid = msg.value;
         bidsForNFT[_nftId][msg.sender] = msg.value;
+    }
 
-        if (block.timestamp >= nftsForSale[_nftId].auctionEndTime) {
-            payable(nftsForSale[_nftId].owner).transfer(
-                nftsForSale[_nftId].highestBid
-            );
-            ERC721Upgradeable.safeTransferFrom(
-                address(this),
-                msg.sender,
-                _nftId
-            );
-            delete nftsForSale[_nftId];
+    function finalizeAuction(uint256 _nftId) public payable  {
+        require(
+            msg.sender == nftsForSale[_nftId].owner,
+            "Only the owner can finalize the auction"
+        );
+        require(
+            block.timestamp >= nftsForSale[_nftId].auctionEndTime,
+            "The auction has not ended yet"
+        );
+        
 
-            // Reset bidder bids
-            for (
-                uint256 i = 0;
-                i < ERC721Upgradeable.balanceOf(address(this));
-                i++
-            ) {
-                address bidder = ERC721Upgradeable.ownerOf(_nftId);
-                bidsForNFT[_nftId][bidder] = 0;
-            }
+        payable(nftsForSale[_nftId].owner).transfer(
+            nftsForSale[_nftId].highestBid
+        );
+        ERC721Upgradeable.safeTransferFrom(
+            address(this),
+            nftsForSale[_nftId].highestBidder,
+            _nftId
+        );
+        delete nftsForSale[_nftId];
+
+        // Reset bidder bids
+        for (
+            uint256 i = 0;
+            i < ERC721Upgradeable.balanceOf(address(this));
+            i++
+        ) {
+            address bidder = ERC721Upgradeable.ownerOf(_nftId);
+            bidsForNFT[_nftId][bidder] = 0;
         }
     }
 }
