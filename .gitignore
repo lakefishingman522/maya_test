@@ -1,9 +1,14 @@
 node_modules
 .env
 
+# Remix dependency files
+.deps
+.deploys
+
 # Hardhat files
 /cache
 /artifacts
+/contracts/artifacts
 
 # TypeChain files
 /typechain
